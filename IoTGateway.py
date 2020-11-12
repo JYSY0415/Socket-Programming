@@ -149,13 +149,21 @@ class IoTGateway:
                     "resource":resource,
                     "action":action
                 }
-                response = requests.post(url, headers = header, data=json.dumps(datas))
-                rs_code = response.status_code
-                if int(rs_code) == 200:
-                    self.networkMap[object_macAddr][1] = True
-                    print(rs_code)
+                
+                try:
+                    response = requests.post(url, headers = header, data=json.dumps(datas), timeout=1)
+                    rs_code = response.status_code
+                    
+                    if int(rs_code) == 200:
+                        self.networkMap[object_macAddr][1] = True
+                        print(rs_code)
 
-                else:
+                    else:
+                        self.networkMap[object_macAddr][1] = False
+                        
+                except requests.Timeout:
+                    self.networkMap[object_macAddr][1] = False
+                except requests.ConnectionError:
                     self.networkMap[object_macAddr][1] = False
 
             time.sleep(5) # BlockChain request delay
@@ -169,9 +177,10 @@ class IoTGateway:
 
                 else:
                     print(self.networkMap[mac][0]+" is Denied")
-                    send(ARP(op=2, pdst = self.gatewayIP, psrc = self.networkMap[mac][0], hwsrc = "11:22:33:44:55:66",hwdst = self.gatewayMac), verbose = 0)
+                    #send(ARP(op=2, pdst = self.gatewayIP, psrc = self.networkMap[mac][0], hwsrc = "AA:AA:AA:BB:BB:BB",hwdst = self.gatewayMac), verbose = 0)
+                    send(ARP(op=2, pdst = self.networkMap[mac][0], psrc = self.gatewayIP, hwsrc = mac,hwdst = mac), verbose = 0)
 
-            time.sleep(3) # ARP Send Frequency
+            time.sleep(1) # ARP Send Frequency
 
     def getNetworkMap(self, ipAddress):
         for mac in self.networkMap.keys():
@@ -181,7 +190,7 @@ class IoTGateway:
         return None
 
     def getMacAddr(self, ip):
-
+        print("AAAAAAAAAAAAAAA")
         arp_req_frame = ARP(pdst = ip)
 
         broadcast_ether_frame = Ether(dst = "ff:ff:ff:ff:ff:ff")
@@ -191,30 +200,40 @@ class IoTGateway:
         answered_list = srp(broadcast_ether_arp_req_frame, timeout = 1, verbose = False)[0]
         result = []
 	client_dict = {}
+        
         for i in range(0,len(answered_list)):
         	client_dict = {"ip" : answered_list[i][1].psrc, "mac" : answered_list[i][1].hwsrc}
         	result.append(client_dict)
-
-        self.networkMap[client_dict['mac']][0] = ip
+        
+        self.networkMap[client_dict["mac"]] = [ip, False]
 
     def setNetworkMap(self, ip):
 
         baseIp = ip[:ip.rfind(".")+1]
+        
+        #print([baseIp])
 
         while True:
             for ipIndex in range(1, 255):
-
+                
                 #print(self.networkMap, ipIndex)
+                
+                #print(baseIp + str(ipIndex))
 
                 if baseIp + str(ipIndex) == ip or baseIp + str(ipIndex) == self.gatewayIP:
                     continue
-
-                r = pyping.ping(baseIp + str(ipIndex), timeout=1)
+                
+                print([baseIp + str(ipIndex)])
+            
+                r = pyping.ping(baseIp + str(ipIndex))
+                
+                print(ipIndex)
 
                 if r.ret_code == 0:
+                    print("ccccccc")
                     self.getMacAddr(baseIp+str(ipIndex))
 
-                time.sleep(3)
+                #time.sleep(3)
 
 if __name__ == '__main__':
 
@@ -225,6 +244,8 @@ if __name__ == '__main__':
     ipIndex = ip.rfind(".")+1
     ipTemp = ip[ipIndex:-2]
     ip = ip[:ipIndex] + ipTemp
+    
+    print("myIP : ", ip)
 
     gatewayInfo = str(check_output(['arp', '-a']))
     gatewayInfo = gatewayInfo.split("\n")
@@ -242,6 +263,10 @@ if __name__ == '__main__':
             gatewayIP = info[ipIdx1:ipIdx2]
 
             break
+        
+    print("my MAC :", mac)
+    print("gatewayMAC :", gatewayMac)
+    print("gatewayIP :", gatewayIP)
 
     gateway = IoTGateway(mac, ip, gatewayMac, gatewayIP)
 
@@ -253,6 +278,9 @@ if __name__ == '__main__':
     threading._start_new_thread(gateway.setNetworkMap, (ip,))
     threading._start_new_thread(gateway.checkPermission, ("Yu205","myPc","Network","connect"))
     threading._start_new_thread(gateway.accessControl, ())
+    
+    while True:
+        time.sleep(100)
 
 #a = gateway.checkPermission()
 #print(a)
