@@ -9,6 +9,7 @@ import thread
 import requests
 import json
 import pyping
+import iptc
 
 global allow1
 
@@ -17,7 +18,7 @@ acceptT = 0
 global denyT
 denyT = 0
 
-
+print("KKKKK")
 
 class IoTGateway:
     
@@ -26,7 +27,7 @@ class IoTGateway:
     gatewayMac = ""
     gatewayIP = ""
 
-    networkMap = {}
+    networkMap = []
 
     #port = 8888
     
@@ -138,35 +139,123 @@ class IoTGateway:
     #         return userpage
 
     def checkPermission(self, methodname,object_name,resource,action):
-        url = "http://36.38.56.78:9322/api/v1/accessControl"
-        header = {'Content-Type':'application/json; charset=utf-8', 'orgAffiliation':'userOrg','orgMspId':'UserOrgMSP'}
+
+    
         
+        rule = iptc.Rule()
+        rule.in_interface = "wlan0"
+        chain = iptc.Chain(iptc.Table(iptc.Table.FILTER), "INPUT")
         while True:
-            for object_macAddr in self.networkMap.keys():
-                datas = {
-                    "methodName":methodname,
-                    "object":{"name":object_name , "macAddress":object_macAddr},
-                    "resource":resource,
-                    "action":action
-                }
-                
-                try:
-                    response = requests.post(url, headers = header, data=json.dumps(datas), timeout=1)
-                    rs_code = response.status_code
+            try:
+                chain.flush()
+                url = "http://180.189.90.200:9322/api/v1/lookUpTables/object?macAddress=B8:27:EB:4A:D0:FB"
+                header = {'orgAffiliation':'userOrg','orgMspId':'UserOrgMSP', 'Content-Type':'application/json'}
                     
-                    if int(rs_code) == 200:
-                        self.networkMap[object_macAddr][1] = True
-                        print(rs_code)
-
-                    else:
-                        self.networkMap[object_macAddr][1] = False
+                response = requests.get(url, headers = header, timeout=3)
+                    #rs_code = response.status_code
+                    
+                    # -----------------------------------------------------------------------------------------------
+                nMap = response.json()
+                    
+                    #print(nMap)
+                    
+                self.networkMap = []
+                
+                for obj in nMap['objects']:
+                    #print(obj)
+                    self.networkMap.append([obj['macAddress'], obj['policyId'], False])
                         
-                except requests.Timeout:
-                    self.networkMap[object_macAddr][1] = False
-                except requests.ConnectionError:
-                    self.networkMap[object_macAddr][1] = False
+                for i in self.networkMap:
+                    try:
+                        url = "http://180.189.90.200:9322/api/v1/accessControl?id="+i[1]
+                        response = requests.get(url, headers = header, timeout=3)
+                            
+                        #print(url)
+                        permission = response.status_code
+                            
+                        if permission == 200:
+                            i[2] = True
+                            
+                        else:
+                            i[2] = False
+                        
+                    except:
+                        print("some error")
+                        
+                print(self.networkMap)
+                    
+                 
+                    #print(len(chain.rules))
+                    
+                
+                rule2 = iptc.Rule()
+                rule2.in_interface = "wlan0"
+                rule2.target = iptc.Target(rule2, "DROP")
+                rule2.protocol = "tcp"
+                    #match = rule2.create_match("tcp")
+                    #match.dport = "!4000"
+                    #rule2.add_match(match)
 
-            time.sleep(5) # BlockChain request delay
+
+                    
+                chain.insert_rule(rule2)
+                
+                
+                rule2 = iptc.Rule()
+                rule2.in_interface = "wlan0"
+                rule2.target = iptc.Target(rule2, "DROP")
+                rule2.protocol = "udp"
+                match = rule2.create_match("udp")
+                match.dport = "!67"
+                rule2.add_match(match)
+                                    
+                chain.insert_rule(rule2)
+                
+                    
+                    #print(rule2.protocol)
+                
+                for i in self.networkMap:
+                    if i[2] == True:
+                        rule = iptc.Rule()
+                        rule.in_interface = "wlan0"
+                        
+                        match = iptc.Match(rule, "mac")
+                        match.mac_source = i[0]       
+                        
+                        rule.add_match(match)
+                        rule.target = iptc.Target(rule, "ACCEPT")
+                            
+                        chain.insert_rule(rule)
+                        
+                        print(i[0].encode('utf8'), type(i[0].encode('utf8')))
+                        
+
+                    
+                    #print(table.name)                    
+                    #print(len(chain.rules))
+                    
+                for i in iptc.easy.dump_chain('filter', 'INPUT'):
+                    print(i)
+                        
+                time.sleep(10) # BlockChain request delay
+                        
+                    
+                    # -----------------------------------------------------------------------------------------------
+                    #print(response.json())
+                    #if int(rs_code) == 200:
+                    #    self.networkMap[object_macAddr][1] = True
+                    #    print(rs_code)
+
+                    #else:
+                    #    self.networkMap[object_macAddr][1] = False
+                        
+            except requests.Timeout:
+                pass
+            except requests.ConnectionError:
+                pass
+                
+
+            
 
     def accessControl(self):
         while True:
@@ -190,7 +279,6 @@ class IoTGateway:
         return None
 
     def getMacAddr(self, ip):
-        print("AAAAAAAAAAAAAAA")
         arp_req_frame = ARP(pdst = ip)
 
         broadcast_ether_frame = Ether(dst = "ff:ff:ff:ff:ff:ff")
@@ -199,11 +287,11 @@ class IoTGateway:
 
         answered_list = srp(broadcast_ether_arp_req_frame, timeout = 1, verbose = False)[0]
         result = []
-	client_dict = {}
+        client_dict = {}
         
         for i in range(0,len(answered_list)):
-        	client_dict = {"ip" : answered_list[i][1].psrc, "mac" : answered_list[i][1].hwsrc}
-        	result.append(client_dict)
+            client_dict = {"ip" : answered_list[i][1].psrc, "mac" : answered_list[i][1].hwsrc}
+            result.append(client_dict)
         
         self.networkMap[client_dict["mac"]] = [ip, False]
 
@@ -225,7 +313,7 @@ class IoTGateway:
                 
                 print([baseIp + str(ipIndex)])
             
-                r = pyping.ping(baseIp + str(ipIndex))
+                r = pyping.ping(baseIp + str(ipIndex), timeout=1)
                 
                 print(ipIndex)
 
@@ -273,28 +361,12 @@ if __name__ == '__main__':
     #userMAC = "00:0c:29:f2:90:e6"
     #penalty = 20
 
-    gateway.networkMap['34:a8:eb:ec:e2:64'] = ['192.168.1.14', True] # TEST IP, MAC
+    #gateway.networkMap['objects'] = [{'macAddress':"58:96:1d:62:14:a7", "name": "laptop"}] # TEST IP, MAC
 
-    threading._start_new_thread(gateway.setNetworkMap, (ip,))
-    threading._start_new_thread(gateway.checkPermission, ("Yu205","myPc","Network","connect"))
-    threading._start_new_thread(gateway.accessControl, ())
+    #threading._start_new_thread(gateway.setNetworkMap, (ip,))
+    threading._start_new_thread(gateway.checkPermission, ("Yu205","myPc","Test","connect"))
+    #threading._start_new_thread(gateway.accessControl, ())
     
     while True:
         time.sleep(100)
-
-#a = gateway.checkPermission()
-#print(a)
-
-#waitThread = threading.Thread(target = gateway.waitAccess, args = [userMAC])
-#waitThread.start()
-
-#denyThread = threading.Thread(target = gateway.denyAccess(), args='')
-#denyThread.start()
-
-#gateway.connectAccess()
-
-#connectThread = threading.Thread(target = gateway.connectAccess, args = "")
-#connectThread.start()
-
-#connectThread.join()
 
