@@ -48,9 +48,15 @@ class IoTGateway:
         rule = iptc.Rule()
         rule.in_interface = "wlan0"
         chain = iptc.Chain(iptc.Table(iptc.Table.FILTER), "INPUT")
+        chain2 = iptc.Chain(iptc.Table(iptc.Table.FILTER), "FORWARD")
+        
+        chain.flush()
+        chain2.flush()
+        
         while True:
+            time.sleep(10)
             try:
-                chain.flush()
+
                 url = "http://180.189.90.200:9322/api/v1/lookUpTables/object?macAddress=B8:27:EB:4A:D0:FB"
                 header = {'orgAffiliation':'userOrg','orgMspId':'UserOrgMSP', 'Content-Type':'application/json'}
                     
@@ -62,75 +68,115 @@ class IoTGateway:
                     
                     #print(nMap)
                     
-                self.networkMap = []
+                tempMap = []
+                
+                
+                
+                #print(self.networkMap)
                 
                 for obj in nMap['objects']:
                     #print(obj)
-                    self.networkMap.append([obj['macAddress'], obj['policyId'], False])
-                        
-                for i in self.networkMap:
+                    tempMap.append([obj['macAddress'], obj['policyId'], False])
+                    
+
+                    
+                for i in tempMap:
                     try:
                         url = "http://180.189.90.200:9322/api/v1/accessControl?id="+i[1]
                         response = requests.get(url, headers = header, timeout=3)
-                            
-                        #print(url)
+                                
+                            #print(url)
                         permission = response.status_code
-                            
+                                
                         if permission == 200:
                             i[2] = True
-                            
+                                
                         else:
                             i[2] = False
-                        
+                            
                     except:
                         print("some error")
                         
+                print(tempMap)
                 print(self.networkMap)
-                    
-                rule2 = iptc.Rule()
-                rule2.in_interface = "wlan0"
-                rule2.target = iptc.Target(rule2, "DROP")
-                rule2.protocol = "tcp"
-         
-                chain.insert_rule(rule2)
-                
-                
-                rule2 = iptc.Rule()
-                rule2.in_interface = "wlan0"
-                rule2.target = iptc.Target(rule2, "DROP")
-                rule2.protocol = "udp"
-                match = rule2.create_match("udp")
-                match.dport = "!67"
-                rule2.add_match(match)
-                                    
-                chain.insert_rule(rule2)
-                
-                    
-                    #print(rule2.protocol)
-                
-                for i in self.networkMap:
-                    if i[2] == True:
-                        rule = iptc.Rule()
-                        rule.in_interface = "wlan0"
                         
-                        match = iptc.Match(rule, "mac")
-                        match.mac_source = i[0].encode('utf8')                       
-                        rule.add_match(match)
-                        rule.target = iptc.Target(rule, "ACCEPT")
+                if tempMap != self.networkMap:
+                    print("AAAACCCCCCCCCCCCCCCCcc")
+                    self.networkMap = tempMap
+                    chain.flush()
+                    chain2.flush()
                             
-                        chain.insert_rule(rule)
+                    #print(self.networkMap)
                         
-                        print(i[0].encode('utf8'), type(i[0].encode('utf8')))
+                    rule2 = iptc.Rule()
+                    rule2.in_interface = "wlan0"
+                    rule2.target = iptc.Target(rule2, "DROP")
+                    rule2.protocol = "tcp"
+             
+                    chain.insert_rule(rule2)
                     
-                for i in iptc.easy.dump_chain('filter', 'INPUT'):
-                    print(i)
+                    
+                    rule2 = iptc.Rule()
+                    rule2.in_interface = "wlan0"
+                    rule2.target = iptc.Target(rule2, "DROP")
+                    rule2.protocol = "udp"
+                    match = rule2.create_match("udp")
+                    match.dport = "!67"
+                    rule2.add_match(match)
+                                        
+                    chain.insert_rule(rule2)
+                    
+                    
+                    
+                    
+                    rule2 = iptc.Rule()
+                    rule2.in_interface = "wlan0"
+                    rule2.target = iptc.Target(rule2, "DROP")
+                                        
+                    chain2.insert_rule(rule2)
+                    
                         
-                time.sleep(10) # BlockChain request delay
-                        
+                        #print(rule2.protocol)
+                    
+                    for i in self.networkMap:
+                        if i[2] == True:
+                            rule = iptc.Rule()
+                            rule.in_interface = "wlan0"
+                            
+                            match = iptc.Match(rule, "mac")
+                            match.mac_source = i[0].encode('utf8')                       
+                            rule.add_match(match)
+                            rule.target = iptc.Target(rule, "ACCEPT")
+                                
+                            chain.insert_rule(rule)
+                            
+                            rule = iptc.Rule()
+                            rule.in_interface = "wlan0"
+                            
+                            match = iptc.Match(rule, "mac")
+                            match.mac_source = i[0].encode('utf8')                       
+                            rule.add_match(match)
+                            rule.target = iptc.Target(rule, "ACCEPT")
+                                
+                            chain2.insert_rule(rule)
+                            
+                            #print(i[0].encode('utf8'), type(i[0].encode('utf8')))
+                            
+                    #time.sleep(100) # BlockChain request delay
+                            
             except requests.Timeout:
                 pass
             except requests.ConnectionError:
                 pass
+            
+            for i in iptc.easy.dump_chain('filter', 'INPUT'):
+                print(i)
+                            
+                print("")
+                            
+            for i in iptc.easy.dump_chain('filter', 'FORWARD'):
+                print("AAAAAAAAA")
+                print(i)
                 
 
             
@@ -247,4 +293,3 @@ if __name__ == '__main__':
     
     while True:
         time.sleep(100)
-
