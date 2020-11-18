@@ -5,7 +5,6 @@ import socket
 import time
 import threading
 import thread
-#import flask
 import requests
 import json
 import pyping
@@ -43,104 +42,8 @@ class IoTGateway:
         self.ipAddr = ipAddr
         self.gatewayMac = gatewayMac
         self.gatewayIP = gatewayIP
-    
-    # def denyAccess(self):
-        
-    #     global denyT
-    #     if denyT == 2:
-    #         return
-
-    #     global allow1
-    #     allow1 = 'false'
-        
-    #     while True:
-    #         print("deny")
-    #         if allow1 == 'true':
-    #             break
-    #         time.sleep(1)
-
-
-            
-    #         send(ARP(op=2, pdst = '192.168.75.1', psrc = '192.168.75.150', hwsrc = "11:22:33:44:55:66",hwdst = '00:50:56:C0:00:08'), verbose = 0)
-
-
-    #         #send(ARP(op=2, pdst = self.networkMap['00:50:56:C0:00:08'], psrc = self.gatewayIP, hwsrc = "11:22:33:44:55:66",hwdst = userMAC), verbose = 0)
-    #     denyT -= 1
-        
-    # def acceptAccess(self):
-        
-    #     global acceptT
-        
-    #     if acceptT == 2:
-    #         return
-
-    #     global allow1
-    #     allow1 = 'true'
-    #     while True:
-    #         print("accept")
-    #         if allow1 == 'false':
-    #             break
-    #         time.sleep(1)
-    #         send(ARP(op=2, pdst = self.networkMap[userMAC], psrc = self.gatewayIP, hwdst = userMAC), verbose = 0)
-    #         send(ARP(op=2, pdst = self.gatewayIP, psrc = self.networkMap[userMAC], hwdst = gatewayMac), verbose = 0)
-    #         #need to change macAddress
-
-    #     acceptT -= 1
-            
-    # def waitAccess(self, userMAC):
-    #     while True:
-    #         send(ARP(op=2, pdst = self.networkMap[userMAC], psrc = self.gatewayIP, hwdst = userMAC), verbose = 0)
-    #         #send(ARP(op=2, pdst = self.ipAddr[:10]+'1', psrc = self.networkMap[userMAC], hwdst = "08:10:77:13:dd:0b"), verbose = 0)
-    #         time.sleep(1)
-        
-    # def connectAccess(self):
-    #     global allow1
-    #     global acceptT
-    #     global denyT
-
-    #     allow1 = 'false'    
-    #     denyT += 1
-    #     threading._start_new_thread(self.denyAccess, ())
-
-
-    #     while True:
-            
-    #         server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            
-    #         ADDR = ("", self.port)
-            
-    #         server_sock.bind(ADDR)
-    #         server_sock.listen(100)
-    #         client, addr = server_sock.accept() 
-    #         k = client.recv(1024)
-
-    #         if k != '':
-    #             allow1 = k
-    #         print('main',k, type(k))
-
-    #         if allow1 == 'true':
-    #             print(allow1)
-    #             acceptT +=1
-    #             threading._start_new_thread(self.acceptAccess, ())
-                
-                
-    #         elif allow1 == 'false':
-    #             print(allow1)
-    #             denyT += 1
-    #             threading._start_new_thread(self.denyAccess, ())
-                
-    #     server_sock.close()
-
-    # def userPage(self):
-    #     #After connect Blockchain
-        
-    #     if(permission == False):
-    #         return userpage
-
     def checkPermission(self, methodname,object_name,resource,action):
 
-    
         
         rule = iptc.Rule()
         rule.in_interface = "wlan0"
@@ -184,20 +87,11 @@ class IoTGateway:
                         
                 print(self.networkMap)
                     
-                 
-                    #print(len(chain.rules))
-                    
-                
                 rule2 = iptc.Rule()
                 rule2.in_interface = "wlan0"
                 rule2.target = iptc.Target(rule2, "DROP")
                 rule2.protocol = "tcp"
-                    #match = rule2.create_match("tcp")
-                    #match.dport = "!4000"
-                    #rule2.add_match(match)
-
-
-                    
+         
                 chain.insert_rule(rule2)
                 
                 
@@ -220,34 +114,18 @@ class IoTGateway:
                         rule.in_interface = "wlan0"
                         
                         match = iptc.Match(rule, "mac")
-                        match.mac_source = i[0]       
-                        
+                        match.mac_source = i[0].encode('utf8')                       
                         rule.add_match(match)
                         rule.target = iptc.Target(rule, "ACCEPT")
                             
                         chain.insert_rule(rule)
                         
                         print(i[0].encode('utf8'), type(i[0].encode('utf8')))
-                        
-
-                    
-                    #print(table.name)                    
-                    #print(len(chain.rules))
                     
                 for i in iptc.easy.dump_chain('filter', 'INPUT'):
                     print(i)
                         
                 time.sleep(10) # BlockChain request delay
-                        
-                    
-                    # -----------------------------------------------------------------------------------------------
-                    #print(response.json())
-                    #if int(rs_code) == 200:
-                    #    self.networkMap[object_macAddr][1] = True
-                    #    print(rs_code)
-
-                    #else:
-                    #    self.networkMap[object_macAddr][1] = False
                         
             except requests.Timeout:
                 pass
