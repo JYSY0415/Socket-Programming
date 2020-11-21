@@ -12,22 +12,26 @@ class IoTGateway:
     networkInterface = ""
     webServer = ""
     macAddr = ""
+    webPort = ""
 
-    def __init__(self, networkInterface, webServer, macAddr):
+    def __init__(self, networkInterface, webServer, macAddr, webPort):
         self.networkInterface = networkInterface
         self.webServer = webServer
         self.macAddr = macAddr
+        self.webPort = webPort
 
     def getNetworkMap(self):
         try:
-            url = "http://" + self.webServer + ":9322/api/v1/lookUpTables/object?macAddress=" + self.macAddr
+            url = "http://" + self.webServer + ":" + self.webPort + "/api/v1/lookUpTables/object?macAddress=" + self.macAddr
             header = {'orgAffiliation':'userOrg','orgMspId':'UserOrgMSP', 'Content-Type':'application/json'}
-
+        
             response = requests.get(url, headers = header, timeout=3)
 
             return response.json()
 
         except:
+            os.system("systemctl stop hostapd")
+            os.system("systemctl stop dnsmasq")
             sys.exit("[!] Failed to get user list from web server")
 
     def getPermission(self, networkMap):
@@ -47,6 +51,8 @@ class IoTGateway:
                     user[2] = False
 
             except:
+                os.system("systemctl stop hostapd")
+                os.system("systemctl stop dnsmasq")
                 sys.exit("[!] Failed to get permission from web server")
 
         return networkMap
@@ -115,7 +121,7 @@ class IoTGateway:
         for chain in iptc.easy.dump_chain('filter', 'FORWARD'):
             print(chain)
 
-        time.sleep(10)
+        time.sleep(3)
 
     def run(self):
         rule = iptc.Rule()
@@ -125,6 +131,8 @@ class IoTGateway:
         forwardChain = iptc.Chain(iptc.Table(iptc.Table.FILTER), "FORWARD")
         
         self.resetChain(inputChain, forwardChain)
+        
+        self.setDrop(inputChain, forwardChain)
         
         while True:
             time.sleep(10) # BlockChain Request delay
@@ -148,20 +156,22 @@ class IoTGateway:
             self.printChain()
 
 if __name__ == '__main__':
-	if len(sys.argv) < 3:
-		sys.exit("[!] Usage >>> python IoTGateway.py [Network Interface] [Web Server Address]")
+    if len(sys.argv) < 4:
+        sys.exit("[!] Usage >>> python IoTGateway.py [Network Interface] [Web Server Address] [Web Port]")
 
-	try:
-		os.system("systemctl restart hostapd")
-		os.system("systemctl restart dnsmasq")
+    try:
+        os.system("systemctl restart hostapd")
+        os.system("systemctl restart dnsmasq")
 
-		macAddr = netifaces.ifaddresses(sys.argv[1])[netifaces.AF_LINK][0]['addr'].upper()
-		
-		print("[+] Gateway Mac Address :", macAddr)
+        macAddr = netifaces.ifaddresses(sys.argv[1])[netifaces.AF_LINK][0]['addr'].upper()
+        
+        print("[+] Gateway Mac Address : " + macAddr)
 
-	except:
-		sys.exit("[!] Incorrect network interface name")
+    except:
+        os.system("systemctl stop hostapd")
+        os.system("systemctl stop dnsmasq")
+        sys.exit("[!] Incorrect network interface name")
 
-	gateway = IoTGateway(sys.argv[1], sys.argv[2], macAddr)
+    gateway = IoTGateway(sys.argv[1], sys.argv[2], macAddr, sys.argv[3])
 
-	gateway.run()
+    gateway.run()
